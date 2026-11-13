@@ -334,7 +334,7 @@ footer .p{color:var(--accent);}
     </div>
   </div>
   <div id="diffPanel" style="display:none">
-    <div class="diff-intro">// paste a list of IP addresses (one per line, or separated by spaces/commas) &mdash; this shows which tracked targets on this page are <b>not</b> in your pasted list</div>
+    <div class="diff-intro">// paste your full list of IPs (one per line, or separated by spaces/commas) &mdash; this shows which targets documented on this page you don't have yet</div>
     <textarea id="diffInput" placeholder="1.2.3.4&#10;5.6.7.8&#10;..." spellcheck="false"></textarea>
     <div class="diff-actions">
       <button class="chip" id="diffCheckBtn">check</button>
@@ -615,16 +615,19 @@ function parseIpList(text){
 }
 
 diffCheckBtn.addEventListener('click', () => {
-  const pasted = new Set(parseIpList(diffInput.value));
+  const pastedList = parseIpList(diffInput.value);
+  const pasted = new Set(pastedList);
   if(!pasted.size){
     diffSummary.textContent = 'paste some IP addresses first';
     diffResults.innerHTML = '';
     diffCopyAllBtn.style.display = 'none';
     return;
   }
+  const matched = pastedList.filter(ip => RECORD_IP_SET.has(ip)).length;
+  const unique = pastedList.length - matched;
   const missing = RECORDS.filter(r => !pasted.has(r.ip));
   lastMissing = missing.map(r => r.ip);
-  diffSummary.innerHTML = '<b>'+pasted.size+'</b> IPs pasted &middot; <b>'+(RECORDS.length-missing.length)+'</b> / '+RECORDS.length+' tracked targets covered &middot; <b>'+missing.length+'</b> not in your list';
+  diffSummary.innerHTML = 'Matched: <b>'+matched+'</b> &middot; Unique: <b>'+unique+'</b> &middot; IPs you don\'t have: <b>'+missing.length+'</b>';
   if(missing.length === 0){
     diffResults.innerHTML = '<div class="no-soft">your list covers every tracked target</div>';
     diffCopyAllBtn.style.display = 'none';

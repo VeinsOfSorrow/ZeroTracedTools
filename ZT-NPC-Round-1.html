@@ -259,6 +259,7 @@ footer .p{color:var(--accent);}
   padding:4px 9px; border-radius:6px; cursor:pointer; user-select:none;
 }
 .diff-pill:hover{background:rgba(255,85,85,0.18);}
+#diffCopyAllBtn.copied{color:var(--accent); border-color:var(--accent); background:rgba(0,255,136,0.10);}
 
 @media (max-width:520px){
   .grid{grid-template-columns:1fr;}
@@ -333,10 +334,11 @@ footer .p{color:var(--accent);}
     </div>
   </div>
   <div id="diffPanel" style="display:none">
-    <div class="diff-intro">// paste a list of IP addresses (one per line, or separated by spaces/commas) &mdash; this checks which ones aren't tracked in this database yet</div>
+    <div class="diff-intro">// paste a list of IP addresses (one per line, or separated by spaces/commas) &mdash; this shows which tracked targets on this page are <b>not</b> in your pasted list</div>
     <textarea id="diffInput" placeholder="1.2.3.4&#10;5.6.7.8&#10;..." spellcheck="false"></textarea>
     <div class="diff-actions">
       <button class="chip" id="diffCheckBtn">check</button>
+      <button class="chip" id="diffCopyAllBtn" style="display:none">copy all missing</button>
       <button class="chip" id="diffClearBtn">clear</button>
     </div>
     <div class="diff-summary" id="diffSummary"></div>
@@ -590,9 +592,11 @@ const browseControls = document.getElementById('browseControls');
 const diffPanel = document.getElementById('diffPanel');
 const diffInput = document.getElementById('diffInput');
 const diffCheckBtn = document.getElementById('diffCheckBtn');
+const diffCopyAllBtn = document.getElementById('diffCopyAllBtn');
 const diffClearBtn = document.getElementById('diffClearBtn');
 const diffSummary = document.getElementById('diffSummary');
 const diffResults = document.getElementById('diffResults');
+let lastMissing = [];
 
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -611,17 +615,23 @@ function parseIpList(text){
 }
 
 diffCheckBtn.addEventListener('click', () => {
-  const ips = parseIpList(diffInput.value);
-  if(!ips.length){
+  const pasted = new Set(parseIpList(diffInput.value));
+  if(!pasted.size){
     diffSummary.textContent = 'paste some IP addresses first';
     diffResults.innerHTML = '';
+    diffCopyAllBtn.style.display = 'none';
     return;
   }
-  const missing = ips.filter(ip => !RECORD_IP_SET.has(ip));
-  diffSummary.innerHTML = '<b>'+ips.length+'</b> IPs checked &middot; <b>'+(ips.length-missing.length)+'</b> already tracked &middot; <b>'+missing.length+'</b> missing';
-  diffResults.innerHTML = missing.length === 0
-    ? '<div class="no-soft">every IP you pasted is already tracked</div>'
-    : missing.map(ip => '<span class="diff-pill" title="click to copy">'+ip+'</span>').join('');
+  const missing = RECORDS.filter(r => !pasted.has(r.ip));
+  lastMissing = missing.map(r => r.ip);
+  diffSummary.innerHTML = '<b>'+pasted.size+'</b> IPs pasted &middot; <b>'+(RECORDS.length-missing.length)+'</b> / '+RECORDS.length+' tracked targets covered &middot; <b>'+missing.length+'</b> not in your list';
+  if(missing.length === 0){
+    diffResults.innerHTML = '<div class="no-soft">your list covers every tracked target</div>';
+    diffCopyAllBtn.style.display = 'none';
+  } else {
+    diffResults.innerHTML = missing.map(r => '<span class="diff-pill" title="'+escapeHTML(r.name||'')+' ['+r.cat+'] &middot; click to copy">'+r.ip+'</span>').join('');
+    diffCopyAllBtn.style.display = 'inline-block';
+  }
 });
 
 diffResults.addEventListener('click', (e) => {
@@ -630,10 +640,19 @@ diffResults.addEventListener('click', (e) => {
   navigator.clipboard.writeText(pill.textContent).catch(()=>{});
 });
 
+diffCopyAllBtn.addEventListener('click', () => {
+  if(!lastMissing.length || !navigator.clipboard) return;
+  navigator.clipboard.writeText(lastMissing.join('\n')).then(() => {
+    diffCopyAllBtn.classList.add('copied');
+    setTimeout(() => diffCopyAllBtn.classList.remove('copied'), 1100);
+  }).catch(()=>{});
+});
+
 diffClearBtn.addEventListener('click', () => {
   diffInput.value = '';
   diffSummary.textContent = '';
   diffResults.innerHTML = '';
+  diffCopyAllBtn.style.display = 'none';
   diffInput.focus();
 });
 
